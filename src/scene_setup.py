@@ -85,7 +85,7 @@ def setup_cameras():
         camera = bpy.context.object
         
         # Set a wider lens (lower focal length = wider FOV)
-        camera.data.lens = 10.0  # Default is ~50mm, 20mm gives a much wider view
+        camera.data.lens = 15.0
         
         # Set up look-at constraint properly
         empty = bpy.data.objects.new(f"Target_{name}", None)

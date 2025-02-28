@@ -15,7 +15,6 @@ CAMERA_POSITIONS = {
     #"back_left": (BOX_SIZE/2, -BOX_SIZE/2, BOX_SIZE/2),     # Back left corner
     #"back_right": (-BOX_SIZE/2, -BOX_SIZE/2, BOX_SIZE/2),   # Back right corner
     "top": (0, 0, BOX_SIZE/2),                              # Top-down view
-    "bottom": (0, 0, -BOX_SIZE/2)
 }
 
 # Rendering settings
