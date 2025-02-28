@@ -11,10 +11,11 @@ VARIATIONS_PER_MODEL = 5  # Number of different poses to render for each model
 # Camera positions
 CAMERA_POSITIONS = {
     "front_left": (BOX_SIZE/2, BOX_SIZE/2, BOX_SIZE/2),     # Front left corner
-    "front_right": (-BOX_SIZE/2, BOX_SIZE/2, BOX_SIZE/2),   # Front right corner
-    "back_left": (BOX_SIZE/2, -BOX_SIZE/2, BOX_SIZE/2),     # Back left corner
-    "back_right": (-BOX_SIZE/2, -BOX_SIZE/2, BOX_SIZE/2),   # Back right corner
-    "top": (0, 0, BOX_SIZE/2)                               # Top-down view
+    #"front_right": (-BOX_SIZE/2, BOX_SIZE/2, BOX_SIZE/2),   # Front right corner
+    #"back_left": (BOX_SIZE/2, -BOX_SIZE/2, BOX_SIZE/2),     # Back left corner
+    #"back_right": (-BOX_SIZE/2, -BOX_SIZE/2, BOX_SIZE/2),   # Back right corner
+    "top": (0, 0, BOX_SIZE/2),                              # Top-down view
+    "bottom": (0, 0, -BOX_SIZE/2)
 }
 
 # Rendering settings

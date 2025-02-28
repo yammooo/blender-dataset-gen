@@ -5,7 +5,7 @@ from mathutils import Vector
 from config import BOX_SIZE
 
 def load_model(model_path):
-    """Load a 3D model into the scene with optimization for speed."""
+    """Load a 3D model into the scene and scale it appropriately."""
     # Import the GLB file
     bpy.ops.import_scene.gltf(filepath=model_path)
     
@@ -43,80 +43,108 @@ def load_model(model_path):
     bpy.ops.object.origin_set(type='GEOMETRY_ORIGIN', center='BOUNDS')
     imported_object.location = (0, 0, 0)
     
-    # Ensure model fits in the box defined by BOX_SIZE
+    # Set minimum and maximum target dimensions
+    target_max_dimension = BOX_SIZE * 0.7  # 50% of the box size
+    target_min_dimension = BOX_SIZE * 0.3  # 30% of the box size
+    
     max_dim = max(imported_object.dimensions)
     if max_dim > 0:
-        scale_factor = (BOX_SIZE * 0.7) / max_dim  # 70% of box size to leave some margin
-        imported_object.scale = (scale_factor, scale_factor, scale_factor)    
-    
-    # Fix mesh issues with optimization for speed
-    bpy.context.view_layer.objects.active = imported_object
-    imported_object.select_set(True)
-    
-    # Simplify geometry if it's very complex (optional)
-    if len(imported_object.data.vertices) > 5000:
-        bpy.ops.object.modifier_add(type='DECIMATE')
-        imported_object.modifiers["Decimate"].ratio = 0.5  # Reduce geometry by 50%
-        bpy.ops.object.modifier_apply(modifier="Decimate")
+        
+        # Generate a random target dimension between min and max
+        target_dimension = random.uniform(target_min_dimension, target_max_dimension)
+        
+        # Scale factor to achieve random target dimension
+        scale_factor = target_dimension / max_dim
+        
+        print(f"[DEBUG] Scaling object: original max dim = {max_dim:.3f}, target dim = {target_dimension:.3f}, scale factor = {scale_factor:.3f}")
+        imported_object.scale = (scale_factor, scale_factor, scale_factor)
+        
+        # Apply the scale to lock it in
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        
+        # Verify scaled dimensions
+        bpy.context.view_layer.update()
+        print(f"[DEBUG] After scaling: new max dim = {max(imported_object.dimensions):.3f}")
+        
+    # Ensure object has valid dimensions after all operations
+    bpy.context.view_layer.update()
     
     return imported_object
 
-def randomize_model_pose(model_object, variation_index=0, max_position_offset=0.5, safe_margin=0.1):
-    """Randomize the rotation and position of a model within the constraints of the box.
-    
-    Args:
-        model_object: The Blender object to randomize
-        variation_index: The index of this variation (0 to n-1)
-        max_position_offset: Maximum distance the object can move from center (as fraction of BOX_SIZE)
-        safe_margin: Safety margin to keep object within box boundaries (as fraction of BOX_SIZE)
-    
-    Returns:
-        Tuple of (rotation_degrees, position_offset) for logging
+def randomize_model_pose(model_object, variation_index=0, simulation_frames=60):
     """
-    # Save original dimensions for safety checks
-    orig_dimensions = model_object.dimensions.copy()
-    max_dim = max(orig_dimensions)
+    Randomize the model's rotation and position with enhanced physics to ensure
+    objects tip over and create diverse poses.
+    """
+    # Select and make active
+    bpy.ops.object.select_all(action='DESELECT')
+    model_object.select_set(True)
+    bpy.context.view_layer.objects.active = model_object
     
-    # Calculate safe boundaries based on object size
-    # Ensure object doesn't cross box boundaries
-    safe_boundary = BOX_SIZE * (1.0 - safe_margin) - max_dim/2
+    # Apply existing transformations
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
     
-    # Generate a random rotation (in radians)
-    # For controlled randomness, seed with variation_index + hash of object name
+    # Reset parent if any (this could limit movement)
+    if model_object.parent:
+        model_object.parent = None
+    
+    # Ensure the object's pivot is centered
+    bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS', center='BOUNDS')
+    
+    # Set rotation mode to Euler
+    model_object.rotation_mode = 'XYZ'
+    
+    # Consistent random seed
     seed = variation_index + hash(model_object.name) % 1000
     random.seed(seed)
     
-    # Random rotation (in radians) around all axes
+    # Calculate object properties
+    volume = model_object.dimensions.x * model_object.dimensions.y * model_object.dimensions.z
+    max_dim = max(model_object.dimensions)
+    min_dim = min(model_object.dimensions)
+    
+    # Adjust the translation range based on object size
+    # Smaller objects get more relative movement
+    size_factor = min(1.0, 0.3/max_dim) if max_dim > 0 else 1.0
+    movement_scale = 1.0 + (size_factor * 0.5)  # Adjust larger objects more
+    
+    # 1. POSITION SETUP with size-adjusted position
+    max_offset = BOX_SIZE * 0.3 * 1
+    pos_x = random.uniform(-max_offset, max_offset)
+    pos_y = random.uniform(-max_offset, max_offset)
+    pos_z = BOX_SIZE * 0.0  # Height is constant
+    
+    # 2. INITIAL ORIENTATION
     rotation_x = random.uniform(0, 2 * math.pi)
     rotation_y = random.uniform(0, 2 * math.pi)
     rotation_z = random.uniform(0, 2 * math.pi)
     
-    # Apply rotation
-    model_object.rotation_euler = (rotation_x, rotation_y, rotation_z)
+    # Debug prints
+    print(f"[DEBUG] Object: {model_object.name} size: {max_dim:.3f}, movement_scale: {movement_scale:.3f}")
+    print(f"[DEBUG] Object: {model_object.name} Position: {pos_x:.3f}, {pos_y:.3f}, {pos_z:.3f}")
+    print(f"[DEBUG] Object: {model_object.name} Rotation (degrees): {math.degrees(rotation_x):.1f}, {math.degrees(rotation_y):.1f}, {math.degrees(rotation_z):.1f}")
     
-    # Force update to get new dimensions after rotation
+    # Clear any animation data or constraints that might affect positioning
+    if model_object.animation_data:
+        model_object.animation_data_clear()
+    for constraint in model_object.constraints:
+        model_object.constraints.remove(constraint)
+    
+    # Apply transforms using matrix_world for better control
+    from mathutils import Matrix, Euler
+    rot_mat = Euler((rotation_x, rotation_y, rotation_z), 'XYZ').to_matrix().to_4x4()
+    trans_mat = Matrix.Translation((pos_x, pos_y, pos_z))
+    model_object.matrix_world = trans_mat @ rot_mat
+    
     bpy.context.view_layer.update()
     
-    # Calculate position offsets that keep the object within the box
-    # after accounting for its possibly changed dimensions due to rotation
-    max_offset_x = min(safe_boundary, BOX_SIZE * max_position_offset)
-    max_offset_y = min(safe_boundary, BOX_SIZE * max_position_offset)
-    max_offset_z = min(safe_boundary, BOX_SIZE * max_position_offset)
+    final_position = model_object.location.copy()
+    final_rotation = model_object.rotation_euler.copy()
     
-    # Generate random position offset within safe boundaries
-    offset_x = random.uniform(-max_offset_x, max_offset_x)
-    offset_y = random.uniform(-max_offset_y, max_offset_y)
-    offset_z = random.uniform(-max_offset_z, max_offset_z)
-    
-    # Apply position offset
-    model_object.location = Vector((offset_x, offset_y, offset_z))
-    
-    # Return rotation (in degrees) and position for logging
     rotation_degrees = (
-        math.degrees(rotation_x),
-        math.degrees(rotation_y),
-        math.degrees(rotation_z)
+        math.degrees(final_rotation.x),
+        math.degrees(final_rotation.y),
+        math.degrees(final_rotation.z)
     )
-    position = (offset_x, offset_y, offset_z)
     
-    return (rotation_degrees, position)
+    return (rotation_degrees, tuple(final_position))

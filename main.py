@@ -8,6 +8,10 @@ blend_dir = os.path.dirname(os.path.abspath(__file__))
 if blend_dir not in sys.path:
     sys.path.append(blend_dir)
 
+act_dir = r"C:\Users\Stage\Development\blender-dataset-gen"
+if act_dir not in sys.path:
+    sys.path.append(act_dir)
+
 from config import OUTPUT_PATH, VARIATIONS_PER_MODEL
 from src.output import create_output_folders, find_models
 from src.scene_setup import clear_scene, setup_cameras, setup_lighting

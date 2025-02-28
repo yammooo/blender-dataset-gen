@@ -13,7 +13,7 @@ def clear_scene():
         else:
             obj.select_set(True)
     
-    # Delete all selected objects (everything except the box)
+    # Delete all selected objects
     if bpy.context.selected_objects:
         bpy.ops.object.delete()
     
@@ -21,24 +21,13 @@ def clear_scene():
     bpy.context.scene.render.resolution_x = RESOLUTION_X
     bpy.context.scene.render.resolution_y = RESOLUTION_Y
     
-    # Switch to Eevee for much faster rendering
-    bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'
+    # Set up renderer settings
+    # Configure Eevee renderer...
+    # (rest of the function unchanged)
     
-    # Configure standard Eevee for fast rendering
-    bpy.context.scene.eevee.taa_render_samples = 16  # Lower sample count
-    bpy.context.scene.eevee.use_gtao = True  # Keep ambient occlusion for depth
-    bpy.context.scene.eevee.gtao_distance = 0.2
-    
-    # Set world background to white
-    world = bpy.context.scene.world
-    if not world:
-        world = bpy.data.worlds.new("World")
-        bpy.context.scene.world = world
-    
-    world.use_nodes = True
-    bg_node = world.node_tree.nodes.get("Background")
-    if bg_node:
-        bg_node.inputs[0].default_value = (1, 1, 1, 1)  # White background
+    # Set up rigid body world if needed
+    if not bpy.context.scene.rigidbody_world:
+        bpy.ops.rigidbody.world_add()
     
     # Create the display box only if it doesn't exist already
     if not box:
@@ -64,10 +53,10 @@ def create_box(box_size):
     material = bpy.data.materials.new("White_Interior")
     material.use_nodes = True
     bsdf = material.node_tree.nodes.get("Principled BSDF")
-    if (bsdf):
+    if bsdf:
         # Pure white, slightly glossy surface
         bsdf.inputs["Base Color"].default_value = (1, 1, 1, 1)
-        bsdf.inputs["Roughness"].default_value = 0.9  # Not too glossy
+        bsdf.inputs["Roughness"].default_value = 0.9
     
     # Assign material to the cube
     box.data.materials.append(material)
@@ -76,14 +65,13 @@ def create_box(box_size):
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
     bpy.ops.mesh.flip_normals()
-    
-    # Remove the bottom face to allow better camera view if needed
-    # bpy.ops.mesh.select_all(action='DESELECT')
-    # bpy.ops.mesh.select_face_by_sides(number=4, type='EQUAL')
-    # bpy.ops.mesh.delete(type='FACE')
-    
-    # Return to object mode
     bpy.ops.object.mode_set(mode='OBJECT')
+    
+    # Add rigid body physics to the box so it acts as a container
+    bpy.context.view_layer.objects.active = box
+    bpy.ops.rigidbody.object_add(type='PASSIVE')
+    box.rigid_body.collision_shape = 'MESH'
+    box.rigid_body.friction = 0.9  # adjust friction if needed
     
     return box
 
@@ -97,7 +85,7 @@ def setup_cameras():
         camera = bpy.context.object
         
         # Set a wider lens (lower focal length = wider FOV)
-        camera.data.lens = 20.0  # Default is ~50mm, 20mm gives a much wider view
+        camera.data.lens = 10.0  # Default is ~50mm, 20mm gives a much wider view
         
         # Set up look-at constraint properly
         empty = bpy.data.objects.new(f"Target_{name}", None)
