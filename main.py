@@ -14,7 +14,7 @@ if act_dir not in sys.path:
 
 from config import OUTPUT_PATH, VARIATIONS_PER_MODEL
 from src.output import create_output_folders, find_models
-from src.scene_setup import clear_scene, setup_cameras, setup_lighting
+from src.scene_setup import clear_scene, setup_cameras, setup_lighting, setup_debug_lighting
 from src.model_handler import load_model, randomize_model_pose
 
 def render_model(model_info):
@@ -28,6 +28,9 @@ def render_model(model_info):
     
     # Set up lighting
     setup_lighting()
+
+    # For debugging: add external debug lights.
+    setup_debug_lighting()
     
     # Load the model
     model = load_model(model_path)

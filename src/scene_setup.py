@@ -21,10 +21,6 @@ def clear_scene():
     bpy.context.scene.render.resolution_x = RESOLUTION_X
     bpy.context.scene.render.resolution_y = RESOLUTION_Y
     
-    # Set up renderer settings
-    # Configure Eevee renderer...
-    # (rest of the function unchanged)
-    
     # Set up rigid body world if needed
     if not bpy.context.scene.rigidbody_world:
         bpy.ops.rigidbody.world_add()
@@ -45,13 +41,14 @@ def create_box(box_size):
         The created box object
     """
     # Create a cube slightly larger than the camera positions
-    bpy.ops.mesh.primitive_cube_add(size=box_size * 2.1)
+    bpy.ops.mesh.primitive_cube_add(size=box_size * 1.1)
     box = bpy.context.object
     box.name = "Display_Box"
     
     # Create white material for interior
     material = bpy.data.materials.new("White_Interior")
     material.use_nodes = True
+    # material.use_backface_culling = False  # Make the material double-sided
     bsdf = material.node_tree.nodes.get("Principled BSDF")
     if bsdf:
         # Pure white, slightly glossy surface
@@ -105,18 +102,13 @@ def setup_cameras():
 def setup_lighting():
     """Set up a single LED light panel in the ceiling of the box."""
     # Create a single ceiling LED panel light
-    bpy.ops.object.light_add(type='AREA', location=(0, 0, BOX_SIZE))  # Position exactly at the top face
+    bpy.ops.object.light_add(type='POINT', location=(0, 0, BOX_SIZE / 2 * 0.95))  # Position exactly at the top face
     led_light = bpy.context.object
     led_light.name = "LED_Panel"
     
     # Configure the light as a square LED panel
     led_light.data.energy = 80  # Bright but not overwhelming
-    led_light.data.size = BOX_SIZE * 0.6  # Square panel covering ~60% of ceiling
-    led_light.data.shape = 'SQUARE'  # Make it a square panel
-    
-    # Point it directly downward
-    led_light.rotation_euler = (0, 0, 0)
-    
+        
     # LED specific settings - cool white light
     led_light.data.color = (1, 1, 1)  # Pure white for LED
     
@@ -124,4 +116,24 @@ def setup_lighting():
     world = bpy.context.scene.world
     world.node_tree.nodes["Background"].inputs[1].default_value = 0.0  # No ambient light
     
-    return led_light
+    return 
+
+def setup_debug_lighting():
+    """Set up additional external lights outside the box for debugging purposes."""
+    debug_lights = []
+    # Define positions outside the box (e.g., one per side)
+    positions = [
+        (BOX_SIZE, 0, BOX_SIZE / 2),    # right side
+        (-BOX_SIZE, 0, BOX_SIZE / 2),   # left side
+        (0, BOX_SIZE, BOX_SIZE / 2),    # front side
+        (0, -BOX_SIZE, BOX_SIZE / 2),   # back side
+    ]
+    
+    for i, pos in enumerate(positions):
+        bpy.ops.object.light_add(type='POINT', location=pos)
+        light = bpy.context.object
+        light.name = f"Debug_Light_{i}"
+        light.data.energy = 50  # adjust energy as needed
+        debug_lights.append(light)
+    
+    return debug_lights

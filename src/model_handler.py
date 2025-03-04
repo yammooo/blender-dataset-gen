@@ -4,6 +4,23 @@ import math
 from mathutils import Vector
 from config import BOX_SIZE
 
+MAX_OBJECT_DIMENSION = 0.7 * BOX_SIZE
+MIN_OBJECT_DIMENSION = 0.3 * BOX_SIZE
+
+def is_object_inside_box(obj, box_size, tol=0.05):
+    """
+    Check if all corners of the object's bounding box (in world space)
+    lie within a cube centered at the origin with side=box_size (with tolerance).
+    """
+    half = box_size / 2
+    for v in obj.bound_box:
+        world_v = obj.matrix_world @ Vector(v)
+        if not (-half - tol <= world_v.x <= half + tol and
+                -half - tol <= world_v.y <= half + tol and
+                -half - tol <= world_v.z <= half + tol):
+            return False
+    return True
+
 def load_model(model_path):
     """Load a 3D model into the scene and scale it appropriately."""
     # Import the GLB file
@@ -26,7 +43,7 @@ def load_model(model_path):
         print(f"Warning: No mesh objects imported from {model_path}")
         return None
     
-    # Join all mesh objects if multiple were imported
+    # If multiple meshes imported, join them
     if len(mesh_objects) > 1:
         bpy.ops.object.select_all(action='DESELECT')
         for obj in mesh_objects:
@@ -44,8 +61,8 @@ def load_model(model_path):
     imported_object.location = (0, 0, 0)
     
     # Set minimum and maximum target dimensions
-    target_max_dimension = BOX_SIZE * 0.7  # 50% of the box size
-    target_min_dimension = BOX_SIZE * 0.3  # 30% of the box size
+    target_max_dimension = MAX_OBJECT_DIMENSION
+    target_min_dimension = MIN_OBJECT_DIMENSION
     
     max_dim = max(imported_object.dimensions)
     if max_dim > 0:
@@ -65,6 +82,11 @@ def load_model(model_path):
         # Verify scaled dimensions
         bpy.context.view_layer.update()
         print(f"[DEBUG] After scaling: new max dim = {max(imported_object.dimensions):.3f}")
+        
+        # Verify that the object is fully inside the box
+        if not is_object_inside_box(imported_object, BOX_SIZE):
+            print("[DEBUG] Object is not fully inside the box after scaling. Skipping this model.")
+            return None
         
     # Ensure object has valid dimensions after all operations
     bpy.context.view_layer.update()
@@ -102,10 +124,10 @@ def randomize_model_pose(model_object, variation_index=0, simulation_frames=60):
     max_dim = max(model_object.dimensions)
 
     # 1. POSITION SETUP - Start object above center of box
-    max_offset = BOX_SIZE * 0.2
+    max_offset = BOX_SIZE / 2 * 0.2
     pos_x = random.uniform(-max_offset, max_offset)
     pos_y = random.uniform(-max_offset, max_offset)
-    pos_z = BOX_SIZE * 0.8  # Start high for dropping
+    pos_z = ((BOX_SIZE / 2) - (MAX_OBJECT_DIMENSION / 2)) * 0.9
 
     # 2. INITIAL ORIENTATION - Random rotation
     rotation_x = random.uniform(0, 2 * math.pi)
