@@ -1,5 +1,5 @@
 import bpy
-from config import RESOLUTION_X, RESOLUTION_Y, CAMERA_POSITIONS, BOX_SIZE
+from config import RESOLUTION_X, RESOLUTION_Y, CAMERA_POSITIONS, BOX_SIZE, CAMERAS_POINT_LOOK_AT
 
 def clear_scene():
     """Set up the scene and preserve the box if it exists."""
@@ -68,7 +68,8 @@ def create_box(box_size):
     bpy.context.view_layer.objects.active = box
     bpy.ops.rigidbody.object_add(type='PASSIVE')
     box.rigid_body.collision_shape = 'MESH'
-    box.rigid_body.friction = 0.9  # adjust friction if needed
+    box.rigid_body.friction = 0.9 
+    box.rigid_body.collision_margin = 0.001
     
     return box
 
@@ -81,12 +82,16 @@ def setup_cameras():
         bpy.ops.object.camera_add(location=position)
         camera = bpy.context.object
         
-        # Set a wider lens (lower focal length = wider FOV)
-        camera.data.lens = 15.0
+        # Set sensor size (mm)
+        camera.data.sensor_width = 7.11  # Horizontal sensor size in mm
+        camera.data.sensor_height = 5.33  # Vertical sensor size in mm
+
+        # Set focal length
+        camera.data.lens = 4.0  # Focal length in mm (between 4.0 and 10.0)
         
         # Set up look-at constraint properly
         empty = bpy.data.objects.new(f"Target_{name}", None)
-        empty.location = (0, 0, 0)
+        empty.location = CAMERAS_POINT_LOOK_AT
         bpy.context.collection.objects.link(empty)
         
         constraint = camera.constraints.new(type='TRACK_TO')

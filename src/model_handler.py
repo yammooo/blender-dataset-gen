@@ -2,10 +2,7 @@ import bpy
 import random
 import math
 from mathutils import Vector
-from config import BOX_SIZE
-
-MAX_OBJECT_DIMENSION = 0.7 * BOX_SIZE
-MIN_OBJECT_DIMENSION = 0.3 * BOX_SIZE
+from config import BOX_SIZE, RESIZE_AND_FIT_OBJECT, MAX_OBJECT_DIMENSION, MIN_OBJECT_DIMENSION
 
 def is_object_inside_box(obj, box_size, tol=0.05):
     """
@@ -59,41 +56,44 @@ def load_model(model_path):
     # Center the object at origin
     bpy.ops.object.origin_set(type='GEOMETRY_ORIGIN', center='BOUNDS')
     imported_object.location = (0, 0, 0)
+
+    bpy.ops.object.collision_margin = 0.0
     
-    # Set minimum and maximum target dimensions
-    target_max_dimension = MAX_OBJECT_DIMENSION
-    target_min_dimension = MIN_OBJECT_DIMENSION
-    
-    max_dim = max(imported_object.dimensions)
-    if max_dim > 0:
+    if RESIZE_AND_FIT_OBJECT:
+        # Set minimum and maximum target dimensions
+        target_max_dimension = MAX_OBJECT_DIMENSION
+        target_min_dimension = MIN_OBJECT_DIMENSION
         
-        # Generate a random target dimension between min and max
-        target_dimension = random.uniform(target_min_dimension, target_max_dimension)
-        
-        # Scale factor to achieve random target dimension
-        scale_factor = target_dimension / max_dim
-        
-        print(f"[DEBUG] Scaling object: original max dim = {max_dim:.3f}, target dim = {target_dimension:.3f}, scale factor = {scale_factor:.3f}")
-        imported_object.scale = (scale_factor, scale_factor, scale_factor)
-        
-        # Apply the scale to lock it in
-        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-        
-        # Verify scaled dimensions
-        bpy.context.view_layer.update()
-        print(f"[DEBUG] After scaling: new max dim = {max(imported_object.dimensions):.3f}")
-        
-        # Verify that the object is fully inside the box
-        if not is_object_inside_box(imported_object, BOX_SIZE):
-            print("[DEBUG] Object is not fully inside the box after scaling. Skipping this model.")
-            return None
+        max_dim = max(imported_object.dimensions)
+        if max_dim > 0:
+            
+            # Generate a random target dimension between min and max
+            target_dimension = random.uniform(target_min_dimension, target_max_dimension)
+            
+            # Scale factor to achieve random target dimension
+            scale_factor = target_dimension / max_dim
+            
+            print(f"[DEBUG] Scaling object: original max dim = {max_dim:.3f}, target dim = {target_dimension:.3f}, scale factor = {scale_factor:.3f}")
+            imported_object.scale = (scale_factor, scale_factor, scale_factor)
+            
+            # Apply the scale to lock it in
+            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+            
+            # Verify scaled dimensions
+            bpy.context.view_layer.update()
+            print(f"[DEBUG] After scaling: new max dim = {max(imported_object.dimensions):.3f}")
+            
+            # Verify that the object is fully inside the box
+            if not is_object_inside_box(imported_object, BOX_SIZE):
+                print("[DEBUG] Object is not fully inside the box after scaling. Skipping this model.")
+                return None
         
     # Ensure object has valid dimensions after all operations
     bpy.context.view_layer.update()
     
     return imported_object
 
-def randomize_model_pose(model_object, variation_index=0, simulation_frames=60):
+def randomize_model_pose(model_object, variation_index=0, simulation_frames=120):
     """
     Randomize the model's rotation and position, then drop it to create natural poses.
     Uses the existing Display_Box for physics containment.
