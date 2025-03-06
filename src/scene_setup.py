@@ -1,17 +1,14 @@
 import bpy
-from config import RESOLUTION_X, RESOLUTION_Y, CAMERA_POSITIONS, BOX_SIZE, CAMERAS_POINT_LOOK_AT
+import random
+import colorsys
+from config import (RESOLUTION_X, RESOLUTION_Y, CAMERA_POSITIONS, BOX_SIZE, CAMERAS_POINT_LOOK_AT, CAMERA_FOCAL_RANGE, LOOK_AT_OFFSET, BOX_ROUGHNESS_RANGE, BOX_SPECULAR_RANGE, BOX_METALLIC_RANGE, LIGHT_ENERGY_RANGE, LIGHT_COLOR_VARIATION, BOX_HUE_VARIATION, BOX_SATURATION_VARIATION, BOX_VALUE_VARIATION)
 
 def clear_scene():
     """Set up the scene and preserve the box if it exists."""
     box = None
     
-    # Find and keep the display box if it exists
     for obj in bpy.data.objects:
-        if obj.name.startswith("Display_Box"):
-            box = obj
-            obj.select_set(False)
-        else:
-            obj.select_set(True)
+        obj.select_set(True)
     
     # Delete all selected objects
     if bpy.context.selected_objects:
@@ -32,39 +29,54 @@ def clear_scene():
     return box
 
 def create_box(box_size):
-    """Create a box with white interior walls to contain the 3D object.
-    
-    Args:
-        box_size: The size of the box (width/height/depth)
-    
-    Returns:
-        The created box object
-    """
-    # Create a cube slightly larger than the camera positions
+    """Create a box with randomized interior material properties."""
     bpy.ops.mesh.primitive_cube_add(size=box_size * 1.1)
     box = bpy.context.object
     box.name = "Display_Box"
     
-    # Create white material for interior
+    # Create material with nodes
     material = bpy.data.materials.new("White_Interior")
     material.use_nodes = True
-    # material.use_backface_culling = False  # Make the material double-sided
-    bsdf = material.node_tree.nodes.get("Principled BSDF")
-    if bsdf:
-        # Pure white, slightly glossy surface
-        bsdf.inputs["Base Color"].default_value = (1, 1, 1, 1)
-        bsdf.inputs["Roughness"].default_value = 0.9
+    nodes = material.node_tree.nodes
+    bsdf = nodes.get("Principled BSDF")
     
-    # Assign material to the cube
+    if bsdf:
+        # Base color in HSV: starting with white (H=0, S=0, V=1)
+        base_h, base_s, base_v = 0.0, 0.0, 1.0
+        
+        # Apply random variations to HSV components
+        h_min, h_max = BOX_HUE_VARIATION
+        s_min, s_max = BOX_SATURATION_VARIATION
+        v_min, v_max = BOX_VALUE_VARIATION
+        
+        # Calculate new HSV with variation
+        new_h = (base_h + random.uniform(h_min, h_max)) % 1.0  # Keep hue in 0-1 range
+        new_s = min(max(base_s + random.uniform(s_min, s_max), 0.0), 1.0)
+        new_v = min(max(base_v + random.uniform(v_min, v_max), 0.0), 1.0)
+        
+        # Convert HSV back to RGB
+        r, g, b = colorsys.hsv_to_rgb(new_h, new_s, new_v)
+        bsdf.inputs["Base Color"].default_value = (r, g, b, 1.0)
+        
+        # Randomize other material properties
+        rough_min, rough_max = BOX_ROUGHNESS_RANGE
+        bsdf.inputs["Roughness"].default_value = random.uniform(rough_min, rough_max)
+        
+        spec_min, spec_max = BOX_SPECULAR_RANGE
+        bsdf.inputs["Specular IOR Level"].default_value = random.uniform(spec_min, spec_max)
+        
+        metal_min, metal_max = BOX_METALLIC_RANGE
+        bsdf.inputs["Metallic"].default_value = random.uniform(metal_min, metal_max)
+    
     box.data.materials.append(material)
     
-    # Flip normals to make interior visible
+    # Flip normals for interior visibility
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
     bpy.ops.mesh.flip_normals()
     bpy.ops.object.mode_set(mode='OBJECT')
     
-    # Add rigid body physics to the box so it acts as a container
+    # Set up rigid body (passive)
     bpy.context.view_layer.objects.active = box
     bpy.ops.rigidbody.object_add(type='PASSIVE')
     box.rigid_body.collision_shape = 'MESH'
@@ -74,24 +86,30 @@ def create_box(box_size):
     return box
 
 def setup_cameras():
-    """Set up cameras at specified positions with a wider field of view."""
+    """Set up cameras with randomized focal lengths and look-at target offsets."""
     cameras = {}
     
     for name, position in CAMERA_POSITIONS.items():
-        # Create camera
         bpy.ops.object.camera_add(location=position)
         camera = bpy.context.object
         
-        # Set sensor size (mm)
-        camera.data.sensor_width = 7.11  # Horizontal sensor size in mm
-        camera.data.sensor_height = 5.33  # Vertical sensor size in mm
-
-        # Set focal length
-        camera.data.lens = 4.0  # Focal length in mm (between 4.0 and 10.0)
+        # Randomize focal length within range
+        focal_min, focal_max = CAMERA_FOCAL_RANGE
+        camera.data.lens = random.uniform(focal_min, focal_max)
         
-        # Set up look-at constraint properly
+        # Set sensor size as provided by the physical camera data
+        camera.data.sensor_width = 7.11  # from our camera spec
+        camera.data.sensor_height = 5.33
+        
+        # Setup look-at target with random offset from CAMERAS_POINT_LOOK_AT
         empty = bpy.data.objects.new(f"Target_{name}", None)
-        empty.location = CAMERAS_POINT_LOOK_AT
+        offset = (random.uniform(*LOOK_AT_OFFSET),
+                  random.uniform(*LOOK_AT_OFFSET),
+                  random.uniform(*LOOK_AT_OFFSET))
+        # New target = base point plus offset
+        empty.location = (CAMERAS_POINT_LOOK_AT[0] + offset[0],
+                          CAMERAS_POINT_LOOK_AT[1] + offset[1],
+                          CAMERAS_POINT_LOOK_AT[2] + offset[2])
         bpy.context.collection.objects.link(empty)
         
         constraint = camera.constraints.new(type='TRACK_TO')
@@ -105,40 +123,42 @@ def setup_cameras():
     return cameras
 
 def setup_lighting():
-    """Set up a single LED light panel in the ceiling of the box."""
-    # Create a single ceiling LED panel light
-    bpy.ops.object.light_add(type='POINT', location=(0, 0, BOX_SIZE / 2 * 0.95))  # Position exactly at the top face
+    """Set up an LED light panel with randomized energy and light color."""
+    bpy.ops.object.light_add(type='POINT', location=(0, 0, BOX_SIZE / 2 * 0.95))
     led_light = bpy.context.object
     led_light.name = "LED_Panel"
     
-    # Configure the light as a square LED panel
-    led_light.data.energy = 80  # Bright but not overwhelming
-        
-    # LED specific settings - cool white light
-    led_light.data.color = (1, 1, 1)  # Pure white for LED
+    # Randomize energy:
+    energy_min, energy_max = LIGHT_ENERGY_RANGE
+    led_light.data.energy = random.uniform(energy_min, energy_max)
     
-    # Disable any world ambient lighting - only the LED panel should light the scene
+    # Randomize light color (base white)
+    color_offset = [random.uniform(*LIGHT_COLOR_VARIATION) for _ in range(3)]
+    base_color = [1, 1, 1]
+    new_color = [min(max(base_color[i] + color_offset[i], 0), 1) for i in range(3)]
+    led_light.data.color = (new_color[0], new_color[1], new_color[2])
+    
+    # Disable ambient light
     world = bpy.context.scene.world
-    world.node_tree.nodes["Background"].inputs[1].default_value = 0.0  # No ambient light
+    world.node_tree.nodes["Background"].inputs[1].default_value = 0.0
     
     return 
 
 def setup_debug_lighting():
-    """Set up additional external lights outside the box for debugging purposes."""
+    """Set up external debug lights (unchanged)."""
     debug_lights = []
-    # Define positions outside the box (e.g., one per side)
     positions = [
-        (BOX_SIZE, 0, BOX_SIZE / 2),    # right side
-        (-BOX_SIZE, 0, BOX_SIZE / 2),   # left side
-        (0, BOX_SIZE, BOX_SIZE / 2),    # front side
-        (0, -BOX_SIZE, BOX_SIZE / 2),   # back side
+        (BOX_SIZE, 0, BOX_SIZE / 2),
+        (-BOX_SIZE, 0, BOX_SIZE / 2),
+        (0, BOX_SIZE, BOX_SIZE / 2),
+        (0, -BOX_SIZE, BOX_SIZE / 2),
     ]
     
     for i, pos in enumerate(positions):
         bpy.ops.object.light_add(type='POINT', location=pos)
         light = bpy.context.object
         light.name = f"Debug_Light_{i}"
-        light.data.energy = 50  # adjust energy as needed
+        light.data.energy = 50
         debug_lights.append(light)
     
     return debug_lights

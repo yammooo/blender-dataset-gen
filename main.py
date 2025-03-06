@@ -23,25 +23,26 @@ def render_model(model_info):
     category = model_info["category"]
     model_name = model_info["model_name"]
     
-    # Clear scene and set up rendering
-    clear_scene()
-    
-    # Set up lighting
-    setup_lighting()
-
-    # For debugging: add external debug lights.
-    setup_debug_lighting()
-    
-    # Load the model
-    model = load_model(model_path)
-    if not model:
-        return False
-    
-    # Set up cameras
-    cameras = setup_cameras()
-    
     # Create variations with different poses
     for variation in range(VARIATIONS_PER_MODEL):
+
+        # Clear scene and set up rendering
+        clear_scene()
+        
+        # Set up lighting
+        setup_lighting()
+
+        # For debugging: add external debug lights.
+        # setup_debug_lighting()
+        
+        # Load the model
+        model = load_model(model_path)
+        if not model:
+            return False
+        
+        # Set up cameras
+        cameras = setup_cameras()
+
         # Apply random rotation and position to the model
         rotation, position = randomize_model_pose(model, variation_index=variation)
         
