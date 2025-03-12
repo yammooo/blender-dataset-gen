@@ -1,36 +1,70 @@
 import bpy
 import random
 import colorsys
-from config import (RESOLUTION_X, RESOLUTION_Y, CAMERA_POSITIONS, BOX_SIZE, CAMERAS_POINT_LOOK_AT, CAMERA_FOCAL_RANGE, LOOK_AT_OFFSET, BOX_ROUGHNESS_RANGE, BOX_SPECULAR_RANGE, BOX_METALLIC_RANGE, LIGHT_ENERGY_RANGE, LIGHT_COLOR_VARIATION, BOX_HUE_VARIATION, BOX_SATURATION_VARIATION, BOX_VALUE_VARIATION)
+import gc
+from config import *
+from config import RESOLUTION_X, RESOLUTION_Y, SELECTED_RENDER_ENGINE, BOX_SIZE
 
 def clear_scene():
-    """Set up the scene and preserve the box if it exists."""
-    box = None
+    """
+    Completely clears the scene and purges orphan data to avoid memory buildup
+    during repeated render cycles.
+    """
+    # Select and delete all objects
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.object.delete(use_global=False)
     
-    for obj in bpy.data.objects:
-        obj.select_set(True)
+    # Purge orphan data from the Outliner.
+    for _ in range(3):
+        try:
+            bpy.ops.outliner.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
+        except RuntimeError:
+            pass
     
-    # Delete all selected objects
-    if bpy.context.selected_objects:
-        bpy.ops.object.delete()
+    # Manually remove unused data blocks
+    for block in bpy.data.meshes:
+        if block.users == 0:
+            bpy.data.meshes.remove(block)
+    for block in bpy.data.materials:
+        if block.users == 0:
+            bpy.data.materials.remove(block)
+    for block in bpy.data.textures:
+        if block.users == 0:
+            bpy.data.textures.remove(block)
+    for block in bpy.data.images:
+        if block.users == 0:
+            bpy.data.images.remove(block)
     
-    # Set rendering resolution
-    bpy.context.scene.render.resolution_x = RESOLUTION_X
-    bpy.context.scene.render.resolution_y = RESOLUTION_Y
+    # Remove the rigid body world if it exists.
+    if bpy.context.scene.rigidbody_world:
+        bpy.ops.rigidbody.world_remove()
     
-    # Set up rigid body world if needed
-    if not bpy.context.scene.rigidbody_world:
-        bpy.ops.rigidbody.world_add()
-    
-    # Create the display box only if it doesn't exist already
-    if not box:
-        create_box(BOX_SIZE)
-    
-    return box
+    # Set render resolution.
+    scene = bpy.context.scene
+    scene.render.resolution_x = RESOLUTION_X
+    scene.render.resolution_y = RESOLUTION_Y
 
-def create_box(box_size):
+    # Set up rigid body world if needed.
+    if not scene.rigidbody_world:
+        bpy.ops.rigidbody.world_add()
+
+    # Create the display box if it doesn't exist.
+    create_box()
+    
+    # Set the render engine.
+    scene.render.engine = SELECTED_RENDER_ENGINE
+    if scene.render.engine == "CYCLES":
+        scene.cycles.device = 'GPU'
+    
+    # Run garbage collection.
+    gc.collect()
+    
+    print("Scene cleared and orphan data purged.")
+    return None
+
+def create_box():
     """Create a box with randomized interior material properties."""
-    bpy.ops.mesh.primitive_cube_add(size=box_size * 1.1)
+    bpy.ops.mesh.primitive_cube_add(size=BOX_SIZE * 1.001)
     box = bpy.context.object
     box.name = "Display_Box"
     
@@ -123,26 +157,48 @@ def setup_cameras():
     return cameras
 
 def setup_lighting():
-    """Set up an LED light panel with randomized energy and light color."""
-    bpy.ops.object.light_add(type='POINT', location=(0, 0, BOX_SIZE / 2 * 0.95))
-    led_light = bpy.context.object
-    led_light.name = "LED_Panel"
+    """
+    Set up four LED-like light bars along the top perimeter of the box.
     
-    # Randomize energy:
-    energy_min, energy_max = LIGHT_ENERGY_RANGE
-    led_light.data.energy = random.uniform(energy_min, energy_max)
+    They are rectangular area lights placed at the center of each edge of the box's top face.
+    Each light's length is 90% of BOX_SIZE and its thickness is 5% of BOX_SIZE.
+    The lights' energy and color are randomly varied using LIGHT_ENERGY_RANGE and LIGHT_COLOR_VARIATION.
+    """
+    bar_length = BOX_SIZE * 0.8
+    bar_thickness = BOX_SIZE * 0.05
+    z_offset = BOX_SIZE/2 - 0.01
+
+    # Helper: Get random energy and color.
+    energy = (random.uniform(*LIGHT_ENERGY_RANGE)) / 4  # Divide by 4 lights
+    # Base white color plus random offset per channel; clamp each to [0,1]
+    base_color = [1.0, 1.0, 1.0]
+    offset = [random.uniform(*LIGHT_COLOR_VARIATION) for _ in range(3)]
+    light_color = tuple(min(max(base_color[i] + offset[i], 0.0), 1.0) for i in range(3))
+
+    # Function to add one rectangular light
+    def add_light(name, location, rotation):
+        bpy.ops.object.light_add(type='AREA', location=location)
+        light = bpy.context.object
+        light.name = name
+        light.data.shape = 'RECTANGLE'
+        light.data.size = bar_length       # Main dimension (width)
+        light.data.size_y = bar_thickness    # Thickness of the bar
+        light.data.energy = energy
+        light.data.color = light_color
+        light.rotation_euler = rotation
+        return light
+
+    lights = []
+    # Top edge light: center at (0, BOX_SIZE/2, z_offset)
+    lights.append(add_light("LED_Top", (0,  BOX_SIZE/2 - BOX_SIZE/10, z_offset), (0, 0, 0)))
+    # Bottom edge light: center at (0, -BOX_SIZE/2, z_offset)
+    lights.append(add_light("LED_Bottom", (0, -BOX_SIZE/2 + BOX_SIZE/10, z_offset), (0, 0, 0)))
+    # Right edge light: center at (BOX_SIZE/2, 0, z_offset), rotate 90° about Z so the long side aligns along Y.
+    lights.append(add_light("LED_Right", (BOX_SIZE/2 - BOX_SIZE/10, 0, z_offset), (0, 0, 1.5708)))
+    # Left edge light: center at (-BOX_SIZE/2, 0, z_offset), rotate 90° about Z.
+    lights.append(add_light("LED_Left", (-BOX_SIZE/2 + BOX_SIZE/10, 0, z_offset), (0, 0, 1.5708)))
     
-    # Randomize light color (base white)
-    color_offset = [random.uniform(*LIGHT_COLOR_VARIATION) for _ in range(3)]
-    base_color = [1, 1, 1]
-    new_color = [min(max(base_color[i] + color_offset[i], 0), 1) for i in range(3)]
-    led_light.data.color = (new_color[0], new_color[1], new_color[2])
-    
-    # Disable ambient light
-    world = bpy.context.scene.world
-    world.node_tree.nodes["Background"].inputs[1].default_value = 0.0
-    
-    return 
+    return lights
 
 def setup_debug_lighting():
     """Set up external debug lights (unchanged)."""

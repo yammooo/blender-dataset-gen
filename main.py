@@ -13,7 +13,7 @@ if act_dir not in sys.path:
     sys.path.append(act_dir)
 
 from config import OUTPUT_PATH, VARIATIONS_PER_MODEL
-from src.output import create_output_folders, find_models
+from src.output import create_output_folders, find_models, record_config
 from src.scene_setup import clear_scene, setup_cameras, setup_lighting, setup_debug_lighting
 from src.model_handler import load_model, randomize_model_pose
 
@@ -57,7 +57,7 @@ def render_model(model_info):
             
             # Create filename with variation suffix
             output_file = f"{model_name}_v{variation+1}.png"
-            output_path = os.path.join(OUTPUT_PATH, category, view, output_file)
+            output_path = os.path.join(OUTPUT_PATH, view, category, output_file)
             bpy.context.scene.render.filepath = output_path
             
             # Render
@@ -74,6 +74,9 @@ def main():
     # Create output folders
     categories = create_output_folders()
     print(f"Found {len(categories)} categories: {', '.join(categories)}")
+
+    # Record the configuration settings
+    record_config()
     
     # Find all models to render
     models = find_models()

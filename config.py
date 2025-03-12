@@ -1,70 +1,69 @@
+# ---------------------------------
 # Paths
-INPUT_PATH = r"C:\Users\gianm\Development\blender-dataset-gen\data\input"
+# ---------------------------------
+INPUT_PATH = r"C:\Users\gianm\Development\blender-dataset-gen\data\commettee_input"
 OUTPUT_PATH = r"C:\Users\gianm\Development\blender-dataset-gen\data\output"
 
-# Box dimension configuration
+# ---------------------------------
+# Box Configuration
+# ---------------------------------
 BOX_SIZE = 0.7  # Size of the box in meters
+CAMERAS_POINT_LOOK_AT = (0, 0, -BOX_SIZE / 3)
 
-CAMERAS_POINT_LOOK_AT = (0, 0, -BOX_SIZE / 3)  # Point all cameras to the center of the box
+# ---------------------------------
+# Render Variations
+# ---------------------------------
+VARIATIONS_PER_MODEL = 1500  # Number of different renders for each model
 
-# Render variations configuration
-VARIATIONS_PER_MODEL = 20  # Number of different poses to render for each model
+# ---------------------------------
+# Renderer Settings
+# ---------------------------------
+AVAILABLE_RENDER_ENGINES = ["CYCLES", "BLENDER_EEVEE_NEXT"]
+SELECTED_RENDER_ENGINE = AVAILABLE_RENDER_ENGINES[1]
 
-# Renderer settings
-CYCLES_PROBABILITY = 0.2  # Probability of using Cycles
+# ---------------------------------
+# Camera Settings
+# ---------------------------------
+CAMERA_FOCAL_RANGE = (4.0, 10.0)    # Focal length range in mm
 
-# Render quality settings
-CYCLES_SAMPLES = 128
-EEVEE_SAMPLES = 64
-USE_DENOISING = True
+LOOK_AT_OFFSET = (-0.05, 0.05)      # Random offset for the look-at target
 
-# Randomness parameters
-# Camera focal length (in mm): use a range between these values.
-CAMERA_FOCAL_RANGE = (4.0, 10.0)
-
-# Look-at target offset for cameras (in meters). Apply a random offset per axis.
-LOOK_AT_OFFSET = (-0.05, 0.05)  # For x, y, and z independently
-
-# Box Material HSV Color Variations
-BOX_HUE_VARIATION = (-0.05, 0.05)        # Slight hue shifts
-BOX_SATURATION_VARIATION = (0, 0.1)      # Small increase in saturation
-BOX_VALUE_VARIATION = (-0.7, 0.00)       # Variation in brightness (from 1)
-
-# New Box Material Variation Ranges
-BOX_ROUGHNESS_RANGE = (0.7, 0.95)
-BOX_SPECULAR_RANGE = (0.0, 0.5)
-BOX_METALLIC_RANGE = (0.0, 0.2)
-
-# Light energy variation (in energy units)
-LIGHT_ENERGY_RANGE = (10, 90)
-
-# Light color variation: random offset for each channel (assumed white base) 
-LIGHT_COLOR_VARIATION = (-0.1, 0.1)
-
-
-# If True, it will try to keep the object fully inside the box (by resizing it)
-RESIZE_AND_FIT_OBJECT = False
-
-MAX_OBJECT_DIMENSION = 0.7 * BOX_SIZE   # Only used if RESIZE_AND_FIT_OBJECT is True
-MIN_OBJECT_DIMENSION = 0.3 * BOX_SIZE   # Only used if RESIZE_AND_FIT_OBJECT is True
-
-# Camera positioning factors
-CAMERA_DISTANCE_FACTOR = 0.7  # How far cameras are from center (0.0-1.0)
-
-# Calculate actual camera positions
-CAMERA_CORNER_COORD = BOX_SIZE / 2 * CAMERA_DISTANCE_FACTOR      # Position far from center
-
-# Camera positions
+# Camera positioning
+CAMERA_DISTANCE_FACTOR = 0.7  # How far cameras are from the center of the box (0.0-1.0)
+CAMERA_CORNER_COORD = BOX_SIZE / 2 * CAMERA_DISTANCE_FACTOR  # Derived coordinate for corner cameras
 CAMERA_POSITIONS = {
-    "front_left": (CAMERA_CORNER_COORD, CAMERA_CORNER_COORD, CAMERA_CORNER_COORD),    # Front left corner
-    "front_right": (-CAMERA_CORNER_COORD, CAMERA_CORNER_COORD, CAMERA_CORNER_COORD),  # Front right corner
-    "back_left": (CAMERA_CORNER_COORD, -CAMERA_CORNER_COORD, CAMERA_CORNER_COORD),    # Back left corner
-    "back_right": (-CAMERA_CORNER_COORD, -CAMERA_CORNER_COORD, CAMERA_CORNER_COORD),  # Back right corner
-    "top": (0, 0, CAMERA_CORNER_COORD),                                               # Top-down view
-    #"outside_front": (BOX_SIZE * 2, 0, BOX_SIZE * 2),
-    #"outside_top": (0, BOX_SIZE * 2, BOX_SIZE * 2),
+    "front_left": (CAMERA_CORNER_COORD,  CAMERA_CORNER_COORD,  CAMERA_CORNER_COORD),
+    "front_right": (-CAMERA_CORNER_COORD, CAMERA_CORNER_COORD,  CAMERA_CORNER_COORD),
+    "back_left": (CAMERA_CORNER_COORD, -CAMERA_CORNER_COORD,  CAMERA_CORNER_COORD),
+    "back_right": (-CAMERA_CORNER_COORD, -CAMERA_CORNER_COORD, CAMERA_CORNER_COORD),
+    "top": (0, 0, CAMERA_CORNER_COORD),
 }
 
-# Rendering settings
+# ---------------------------------
+# Box Material Variations (HSV)
+# ---------------------------------
+BOX_HUE_VARIATION = (-0.1, 0.1)       # Hue shifts
+BOX_SATURATION_VARIATION = (0, 0.2)     # Variation in saturation
+BOX_VALUE_VARIATION = (-0.9, -0.0)      # Variation in brightness (value)
+BOX_ROUGHNESS_RANGE = (0.5, 0.95)       # Roughness variation
+BOX_SPECULAR_RANGE = (0.0, 0.5)         # Specular variation
+BOX_METALLIC_RANGE = (0.0, 0.4)         # Metallic variation
+
+# ---------------------------------
+# Lighting Variations
+# ---------------------------------
+LIGHT_ENERGY_RANGE = (7, 50)            # Energy variation (in watts)
+LIGHT_COLOR_VARIATION = (-0.7, 0.7)     # Color variation: random offset for each channel (base is white)
+
+# ---------------------------------
+# Object Resizing (Optional)
+# ---------------------------------
+RESIZE_AND_FIT_OBJECT = False           # If True, objects will be resized to fit the box
+MAX_OBJECT_DIMENSION = 0.7 * BOX_SIZE
+MIN_OBJECT_DIMENSION = 0.3 * BOX_SIZE
+
+# ---------------------------------
+# Render Resolution
+# ---------------------------------
 RESOLUTION_X = 2048 // 4
 RESOLUTION_Y = 2048 // 4
