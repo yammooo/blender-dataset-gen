@@ -119,41 +119,60 @@ def create_box():
     
     return box
 
+def clamp(val, min_val, max_val):
+    return max(min_val, min(val, max_val))
+
 def setup_cameras():
-    """Set up cameras with randomized focal lengths and look-at target offsets."""
+    """Set up cameras with randomized focal lengths, positions, and look-at target offsets."""
     cameras = {}
-    
-    for name, position in CAMERA_POSITIONS.items():
-        bpy.ops.object.camera_add(location=position)
+
+    box_half = BOX_SIZE / 2  # maximum allowed coordinate so that cameras remain inside the box
+
+    for name, base_position in CAMERA_BASE_POSITIONS.items():
+        bpy.ops.object.camera_add(location=base_position)
         camera = bpy.context.object
-        
+
         # Randomize focal length within range
         focal_min, focal_max = CAMERA_FOCAL_RANGE
         camera.data.lens = random.uniform(focal_min, focal_max)
-        
-        # Set sensor size as provided by the physical camera data
-        camera.data.sensor_width = 7.11  # from our camera spec
-        camera.data.sensor_height = 5.33
-        
+
+        # Set sensor sizes
+        camera.data.sensor_width = 7.11     # from our camera spec
+        camera.data.sensor_height = 5.33    # from our camera spec
+
+        # Randomize the camera position by adding a jitter offset to each component.
+        # Clamp the final coordinate so it's within (-BOX_SIZE/2, BOX_SIZE/2)
+        jitter = lambda: random.uniform(*CAMERA_POSITION_JITTER)
+        new_position = (
+            clamp(base_position[0] + jitter(), -box_half, box_half),
+            clamp(base_position[1] + jitter(), -box_half, box_half),
+            clamp(base_position[2] + jitter(), -box_half, box_half)
+        )
+        camera.location = new_position
+
         # Setup look-at target with random offset from CAMERAS_POINT_LOOK_AT
         empty = bpy.data.objects.new(f"Target_{name}", None)
-        offset = (random.uniform(*LOOK_AT_OFFSET),
-                  random.uniform(*LOOK_AT_OFFSET),
-                  random.uniform(*LOOK_AT_OFFSET))
-        # New target = base point plus offset
-        empty.location = (CAMERAS_POINT_LOOK_AT[0] + offset[0],
-                          CAMERAS_POINT_LOOK_AT[1] + offset[1],
-                          CAMERAS_POINT_LOOK_AT[2] + offset[2])
+        offset = (
+            random.uniform(*LOOK_AT_OFFSET),
+            random.uniform(*LOOK_AT_OFFSET),
+            random.uniform(*LOOK_AT_OFFSET)
+        )
+        empty.location = (
+            CAMERAS_POINT_LOOK_AT[0] + offset[0],
+            CAMERAS_POINT_LOOK_AT[1] + offset[1],
+            CAMERAS_POINT_LOOK_AT[2] + offset[2]
+        )
         bpy.context.collection.objects.link(empty)
-        
+
+        # Create a track-to constraint so the camera points at the target.
         constraint = camera.constraints.new(type='TRACK_TO')
         constraint.target = empty
         constraint.track_axis = 'TRACK_NEGATIVE_Z'
         constraint.up_axis = 'UP_Y'
-        
+
         camera.name = f"Camera_{name}"
         cameras[name] = camera
-    
+
     return cameras
 
 def setup_lighting():

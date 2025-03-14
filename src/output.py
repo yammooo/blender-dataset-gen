@@ -2,14 +2,14 @@ import json
 import os
 import glob
 import config
-from config import INPUT_PATH, OUTPUT_PATH, CAMERA_POSITIONS
+from config import INPUT_PATH, OUTPUT_PATH, CAMERA_BASE_POSITIONS
 
 def create_output_folders():
     """Create output folders for each category and view."""
     # Get all categories
     categories = [d for d in os.listdir(INPUT_PATH) if os.path.isdir(os.path.join(INPUT_PATH, d))]
     
-    for view in CAMERA_POSITIONS.keys():
+    for view in CAMERA_BASE_POSITIONS.keys():
         view_dir = os.path.join(OUTPUT_PATH, view)
         os.makedirs(view_dir, exist_ok=True)
 
